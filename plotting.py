@@ -38,7 +38,7 @@ def plot_variables(grouped):
   tone = grouped['tone']
   tone_sd = grouped['tone_sd']
 
-  ax1.fill_between(x,  tone+tone_sd*2, tone-tone_sd*2, facecolor='grey', edgecolor='white', alpha=0.6)
+  #ax1.fill_between(x,  tone+tone_sd*2, tone-tone_sd*2, facecolor='grey', edgecolor='white', alpha=0.6)
   ax1.plot(x, tone.ravel(), label='Net tone')
   ax1.set_ylim(0, 1)
   ax1.legend(loc='upper left')
@@ -56,6 +56,7 @@ def plot_variables(grouped):
 
   ax4.plot(x, grouped['entropy'], label='Entropy')  
   ax4.legend(loc='lower left')
+
 
 def plot_frames(grouped):
     f, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8), (ax9, ax10, ax11, ax12), (ax13, ax14, ax15, ax16)) = plt.subplots(4, 4, sharex=True, sharey=True, figsize=(8,6))
