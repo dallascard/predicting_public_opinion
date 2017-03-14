@@ -237,8 +237,8 @@ def combine_polls_with_preceeding_articles(polls, data, n_days=30):
     combined['N'] = polls['N']
     combined['Varname'] = polls['Varname']
     combined['running_average'] = polls['running_average'].values / 100.0
-    combined['predict'] = polls['predict']
-    combined['prev_value'] = polls['prev_value'] / 100.0
+    #combined['predict'] = polls['predict']
+    #combined['prev_value'] = polls['prev_value'] / 100.0
 
     max_N = np.max(combined['N'])
     combined['N'] = combined['N'] / float(max_N)
