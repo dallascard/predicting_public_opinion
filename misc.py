@@ -174,6 +174,7 @@ def calculate_weighted_average(polls, temperature=500):
         else:
             running_average.append(np.NaN)
         #print i, running_sum, weight_sum
+
     return running_average
 
 
