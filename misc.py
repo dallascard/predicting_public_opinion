@@ -66,8 +66,8 @@ def group_tone_data(data, group_by):
     grouped['tone'] = groups.aggregate(np.mean)['tone']
     tone = grouped['tone'].values
     N = grouped['stories'].values
-    tone_sd = np.sqrt(tone * (1-tone) / N)
-    grouped['tone_sd'] = tone_sd
+    #tone_sd = np.sqrt(tone * (1-tone) / N)
+    #grouped['tone_sd'] = tone_sd
 
     grouped['directness'] = groups.aggregate(np.mean)['directness']
     directness = grouped['directness'].values

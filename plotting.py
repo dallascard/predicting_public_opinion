@@ -28,7 +28,7 @@ markers = {0: "o", #circle
            9: "8", #octagon
            }
 
-def plot_variables(grouped):
+def plot_variables(grouped, tone_min=0, tone_max=1):
 
   # plot the basic variables of interest
   fig, ax = plt.subplots(4, sharex=True)
@@ -36,11 +36,11 @@ def plot_variables(grouped):
 
   x = grouped['x']
   tone = grouped['tone']
-  tone_sd = grouped['tone_sd']
+  #tone_sd = grouped['tone_sd']
 
   #ax1.fill_between(x,  tone+tone_sd*2, tone-tone_sd*2, facecolor='grey', edgecolor='white', alpha=0.6)
   ax1.plot(x, tone.ravel(), label='Net tone')
-  ax1.set_ylim(0, 1)
+  ax1.set_ylim(tone_min, tone_max)
   ax1.legend(loc='upper left')
 
   directness = grouped['directness']
