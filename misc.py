@@ -3,6 +3,9 @@ import pandas as pd
 import datetime as dt
 from scipy.stats import entropy
 
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+
 from collections import Counter
 
 def read_tone_data(data_file, first_year):
@@ -174,6 +177,10 @@ def calculate_weighted_average(polls, temperature=500):
     return running_average
 
 
+def predict_opinion_with_gps(polls):
+    pass
+
+
 def combine_polls_and_tone(polls, grouped):
     nRows, nColls = polls.shape
 
@@ -234,7 +241,8 @@ def combine_polls_with_preceeding_articles(polls, data, n_days=30, use_frames=Tr
             combined.loc[index, 'entropy'] = entropy(get_frame_vals(article_mean))
 
     combined['tone'] = combined['Pro'] - combined['Anti']
-    combined['date'] = polls['date']
+    dates = [dt.datetime.strptime(str(d), '%m/%d/%Y') for d in polls['Date']]
+    combined['date'] = dates
     combined['Value'] = polls['Index'] / 100.0
     combined['N'] = polls['N']
     combined['Varname'] = polls['Varname']

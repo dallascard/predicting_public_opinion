@@ -101,7 +101,7 @@ def plot_frames(grouped):
     f.subplots_adjust(wspace=0)  
 
 
-def plot_polling_data(polls):
+def plot_polling_data(polls, plot_gp_pred=False):
 
   varname_vals = set(polls['Varname'].ravel())
   varname_counts = Counter()
@@ -141,16 +141,17 @@ def plot_polling_data(polls):
         edgecolor = edgecolor + [1]
       ax.scatter(dates, polls_v['Value'].ravel(), s=size, facecolor=facecolor, edgecolor=edgecolor, label=varname, alpha=0.5)
 
-  plt.legend(loc='upper right', scatterpoints=1, bbox_to_anchor=(1.3,1))
   first_year = polls['date'].min().year-2
   last_year = polls['date'].max().year+2
   plt.xlim(dt.date(first_year, 1, 1), dt.date(last_year, 1, 1))
-  #plt.plot(polls['date'].values, polls['entropy'].values /, 'k')
+  if plot_gp_pred:
+    plt.scatter(polls['date'].values, polls['gp_pred'].values, facecolor='white', edgecolor='black', label='GP predictions')
   #plt.plot(polls['date'].values, 0.3 + polls['tone'].values, 'k')
   #plt.plot(polls['date'].values, 0.3 + polls['directness'].values * polls['tone'].values, 'g')
   #plt.plot(polls['date'].values, 0.5 +  polls['tone'].values * polls['stories'].values / polls['stories'].max(), 'r')
   #plt.plot(polls['date'].values, polls['stories'].values / polls['stories'].max(), 'b')
   #plt.scatter(polls['date'].values, polls['tone'].values, c='k')
   plt.ylim(0,1)
+  plt.legend(loc='upper right', scatterpoints=1, bbox_to_anchor=(1.3,1))
 
 
