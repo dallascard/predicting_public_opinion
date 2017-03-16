@@ -38,7 +38,7 @@ def get_frame_vals(row):
     return frame_vals
 
 
-def group_tone_data(data, group_by):
+def group_tone_data(data, group_by, use_frames=True):
     """
     Group the data in a DataFrame by either month or quarter
     :param data (DataFrame): the data frame to group
@@ -74,14 +74,15 @@ def group_tone_data(data, group_by):
     directness_sd = np.sqrt(directness * (1-directness) / N)
     grouped['directness_sd'] = directness_sd
 
-    frames = ['p' + str(i) for i in range(15)]
-    for c in frames:
-        grouped[c] = groups.aggregate(np.mean)[c]
+    if use_frames:
+        frames = ['p' + str(i) for i in range(15)]
+        for c in frames:
+            grouped[c] = groups.aggregate(np.mean)[c]
 
-    for i, index in enumerate(grouped.index):
-        row = grouped.loc[index]
-        frame_vals = get_frame_vals(row)
-        grouped.loc[index, 'entropy'] = entropy(frame_vals)
+        for i, index in enumerate(grouped.index):
+            row = grouped.loc[index]
+            frame_vals = get_frame_vals(row)
+            grouped.loc[index, 'entropy'] = entropy(frame_vals)
 
     if group_by == 'quarter':
         grouped['x'] = [i[0] + (i[1]-1)*0.25 for i in grouped.index]
@@ -215,7 +216,7 @@ def combine_polls_and_tone(polls, grouped):
     return combined
 
 
-def combine_polls_with_preceeding_articles(polls, data, n_days=30):
+def combine_polls_with_preceeding_articles(polls, data, n_days=30, use_frames=True):
 
     combined = pd.DataFrame(columns=['Pro', 'Neutral', 'Anti', 'directness', 'stories'], dtype=float)
 
@@ -229,7 +230,8 @@ def combine_polls_with_preceeding_articles(polls, data, n_days=30):
         combined.loc[index, 'Anti'] = article_mean['Anti']
         combined.loc[index, 'directness'] = article_mean['directness']
         combined.loc[index, 'stories'] = n_articles
-        combined.loc[index, 'entropy'] = entropy(get_frame_vals(article_mean))
+        if use_frames:
+            combined.loc[index, 'entropy'] = entropy(get_frame_vals(article_mean))
 
     combined['tone'] = combined['Pro'] - combined['Anti']
     combined['date'] = polls['date']

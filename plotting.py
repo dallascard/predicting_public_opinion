@@ -28,7 +28,7 @@ markers = {0: "o", #circle
            9: "8", #octagon
            }
 
-def plot_variables(grouped, tone_min=0, tone_max=1):
+def plot_variables(grouped, tone_min=0, tone_max=1, plot_frames=True):
 
   # plot the basic variables of interest
   fig, ax = plt.subplots(4, sharex=True)
@@ -54,8 +54,9 @@ def plot_variables(grouped, tone_min=0, tone_max=1):
   ax3.plot(x, grouped['stories'], label='Number of stories')
   ax3.legend(loc='upper left') 
 
-  ax4.plot(x, grouped['entropy'], label='Entropy')  
-  ax4.legend(loc='lower left')
+  if plot_frames:
+    ax4.plot(x, grouped['entropy'], label='Entropy')  
+    ax4.legend(loc='lower left')
 
 
 def plot_frames(grouped):
