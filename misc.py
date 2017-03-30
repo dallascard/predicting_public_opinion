@@ -2,13 +2,31 @@ import numpy as np
 import pandas as pd
 import datetime as dt
 from scipy.stats import entropy
+import statsmodels.api as sm
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 
 from collections import Counter
 
-def read_tone_data(data_file, first_year):
+FRAMES = ['Economic',
+         'Capacity_and_resources',
+         'Morality',
+         'Fairness_and_equality',
+         'Legality_jurisdiction',
+         'Policy_prescription',
+         'Crime_and_punishment',
+         'Security_and_defense',
+         'Health_and_safety',
+         'Quality_of_life',
+         'Cultural_identity',
+         'Public_sentiment',
+         'Political',
+         'External_regulation',
+         'Other']
+
+
+def read_article_data(data_file, first_year, rename_frames=False):
     """
     Read in tone predictions for an issue and return a pandas DataFrame
     :param data_file (.csv file): file containing the predictions
@@ -25,23 +43,39 @@ def read_tone_data(data_file, first_year):
     # combine year, month, day into a single date variable
     data['date'] = data.apply(lambda row: pd.Timestamp(dt.date(row['Year'], row['Month'], row['Day'])), axis=1)
 
-    # determine the quarter (1/4 year) from the date
-    data['quarter'] = data.apply(lambda row: row['date'].quarter, axis=1)
-
-    # compute the net tone
-    data['tone'] = data['Pro'] - data['Anti']
-    data['directness'] = data['Explicit']
+    if rename_frames:
+        columns = list(data.columns)
+        for f_i, f in enumerate(FRAMES):
+            col_index = columns.index('p' + str(f_i))
+            columns[col_index] = f
+        data.columns = columns
 
     return data
 
 
-def get_frame_vals(row):
-    frames = ['p' + str(i) for i in range(15)]
-    frame_vals = np.array([row[f] for f in frames])    
-    return frame_vals
+def convert_dates(df, first_year):
+    df['year'] = [d.year for d in df['date']]
+    df['month'] = [d.month for d in df['date']]
+    df['day'] = [d.day for d in df['date']]
+    df['quarter'] = [d.quarter for d in df['date']]
+    df['p_month'] = [(d.year - first_year)*12 + (d.month - 1) for d in df['date']]
+    df['p_quarter'] = [(d.year - first_year)*4 + (d.quarter - 1) for d in df['date']]
+    return df
 
 
-def group_tone_data(data, group_by, use_frames=True):
+def get_f_dates(data, first_year, group_by):
+    # create a grouping of articles by year/quarter
+    if group_by == 'month':
+        data['f_date'] = data['year'] + (data['month'] - 1) / 12.0
+    elif group_by == 'quarter':
+        data['f_date'] = data['year'] + (data['quarter'] - 1) / 4.0
+    else:
+        sys.exit('group_by not recognized')
+    data['f_date_0'] = data['f_date'] - first_year
+    return data
+
+
+def group_article_data(data, group_by, first_year, group_tone=False, group_frames=False):
     """
     Group the data in a DataFrame by either month or quarter
     :param data (DataFrame): the data frame to group
@@ -51,103 +85,84 @@ def group_tone_data(data, group_by, use_frames=True):
 
     # create a dummy variable = 1 for all articles
     data['stories'] = 1
+
+    data = get_f_dates(data, first_year, group_by)
       
-    # create a grouping of articles by year/quarter
     if group_by == 'quarter':
-        groups = data.groupby(['Year', 'quarter'])
+        groups = data.groupby('p_quarter')
     elif group_by == 'month':
-        groups = data.groupby(['Year', 'Month'])
+        groups = data.groupby('p_month')
     else:
         sys.exit('group_by not recognized')
+
       
     # create a new dataframe "grouped", which is what we will work with
     grouped = pd.DataFrame()
+    grouped['f_date'] = groups.aggregate(np.mean)['f_date']
+    grouped['f_date_0'] = groups.aggregate(np.mean)['f_date_0']
 
     # add up the total number of articles per quarter and store in grouped
     grouped['stories'] = groups.aggregate(np.sum)['stories']
 
-    grouped['tone'] = groups.aggregate(np.mean)['tone']
-    tone = grouped['tone'].values
-    N = grouped['stories'].values
-    #tone_sd = np.sqrt(tone * (1-tone) / N)
-    #grouped['tone_sd'] = tone_sd
+    if group_tone:
+        grouped['tone'] = groups.aggregate(np.mean)['tone']
+        grouped['Pro'] = groups.aggregate(np.mean)['Pro']
+        grouped['Neutral'] = groups.aggregate(np.mean)['Anti']
+        grouped['Anti'] = groups.aggregate(np.mean)['Anti']
 
-    grouped['directness'] = groups.aggregate(np.mean)['directness']
-    directness = grouped['directness'].values
-    directness_sd = np.sqrt(directness * (1-directness) / N)
-    grouped['directness_sd'] = directness_sd
-
-    if use_frames:
-        frames = ['p' + str(i) for i in range(15)]
-        for c in frames:
+    if group_frames:
+        for c in FRAMES:
             grouped[c] = groups.aggregate(np.mean)[c]
 
-        for i, index in enumerate(grouped.index):
-            row = grouped.loc[index]
-            frame_vals = get_frame_vals(row)
-            grouped.loc[index, 'entropy'] = entropy(frame_vals)
-
-    if group_by == 'quarter':
-        grouped['x'] = [i[0] + (i[1]-1)*0.25 for i in grouped.index]
-    elif group_by == 'month':
-        grouped['x'] = [i[0] + (i[1]-1)/12.0 for i in grouped.index]
-    else:
-        grouped['x'] = 0
+    log_stories = np.log(grouped['stories'].values)
+    grouped['logStories'] = log_stories - float(np.mean(log_stories))
 
     return grouped
 
 
-def load_polls(filename, first_year, last_date, subcode=None):
-  """
-  Load the polling data from a .csv file
-  :param filename (str): The file containing the polling data
-  :param first_year (int): Exclude polls before this year
-  :param last_date (date): Exclude polls after this date
-  :param subcode (int): If not None, only include polls with this subcode
-  :return A DataFrame of polling data
-  """
-
-  df = pd.read_csv(filename)
-  nRows, nCols = df.shape
-
-  dates = [dt.datetime.strptime(str(d), '%m/%d/%Y') for d in df['Date']]
-  values = df['Index'].as_matrix() / 100.0
-  n = df['N'].as_matrix()
-  varnames = df['Varname'].ravel()
-  df['date'] = dates
-
-  # only include polls with N > 0
-  df = df[df['N'] > 0]
-  df = df[df['date'] > dt.date(first_year, 1, 1)]
-  df = df[df['date'] <= last_date]  
-
-  if subcode is not None:
-    df = df[df['Subcode'] == subcode]
-
-  df = df.sort('date')
-
-  return df
+def compute_entropy(df):
+    for i, index in enumerate(df.index):
+        row = df.loc[index]
+        frame_vals = np.array([row[f] for f in FRAMES])    
+        df.loc[index, 'entropy'] = entropy(frame_vals)
+    return df
 
 
-def store_previous_poll_result(polls):
-    varnames = set(polls['Varname'].ravel())
+def load_polls(filename, first_year, last_date=None, subcode=None):
+    """
+    Load the polling data from a .csv file
+    :param filename (str): The file containing the polling data
+    :param first_year (int): Exclude polls before this year
+    :param last_date (date): Exclude polls after this date
+    :param subcode (int): If not None, only include polls with this subcode
+    :return A DataFrame of polling data
+    """
 
-    dfs = []
+    df = pd.read_csv(filename)
+    nRows, nCols = df.shape
+
+    #dates = [pd.Timestamp(dt.datetime.strptime(str(d), '%m/%d/%Y')) for d in df['Date']]
+    df['date'] = [pd.Timestamp(d) for d in df['Date']]
+
+    df = convert_dates(df, first_year)
     
-    for varname in varnames:
-        df_v = polls[polls['Varname'] == varname]
-        df_v.sort_values(by='date')
-        for i, index in enumerate(df_v.index):
-            if i == 0:
-                df_v.loc[index, 'predict'] = 0
-            else:
-                df_v.loc[index, 'prev_value'] = df_v.loc[df_v.index[i-1], 'Index']
-                df_v.loc[index, 'predict'] = 1
+    df['value'] = df['Index'].as_matrix() / 100.0
 
-        dfs.append(df_v)
+    # transform poll values in range (0-1) to R
+    df['transformed'] = np.log(df.value / (1 - df.value))
 
-    df = pd.concat(dfs)
-    df = df.sort('date')
+    # only include polls with N > 0
+    df = df[df['N'] > 0]
+
+    # filter by date
+    df = df[df['date'] >= pd.datetime(first_year, 1, 1)]
+    if last_date is not None:
+        df = df[df['date'] <= last_date]  
+
+    # sort the polls by date
+    df = df.sort_values(by='date')
+    df = convert_dates(df, first_year)
+    
     return df
 
 
@@ -176,10 +191,6 @@ def calculate_weighted_average(polls, temperature=500):
         #print i, running_sum, weight_sum
 
     return running_average
-
-
-def predict_opinion_with_gps(polls):
-    pass
 
 
 def combine_polls_and_tone(polls, grouped):
@@ -224,7 +235,7 @@ def combine_polls_and_tone(polls, grouped):
     return combined
 
 
-def combine_polls_with_preceeding_articles(polls, data, n_days=30, use_frames=True):
+def combine_polls_with_preceeding_articles(polls, data, n_days=30, use_directness=True, use_frames=True):
 
     combined = pd.DataFrame(columns=['Pro', 'Neutral', 'Anti', 'directness', 'stories'], dtype=float)
 
@@ -236,18 +247,26 @@ def combine_polls_with_preceeding_articles(polls, data, n_days=30, use_frames=Tr
         combined.loc[index, 'Pro'] = float(article_mean['Pro'])
         combined.loc[index, 'Neutral'] = article_mean['Neutral']
         combined.loc[index, 'Anti'] = article_mean['Anti']
-        combined.loc[index, 'directness'] = article_mean['directness']
+        if use_directness:
+            combined.loc[index, 'directness'] = article_mean['directness']
         combined.loc[index, 'stories'] = n_articles
         if use_frames:
             combined.loc[index, 'entropy'] = entropy(get_frame_vals(article_mean))
+            frames = ['p' + str(i) for i in range(15)]
+            for f in frames:
+                combined.loc[index, f] = article_mean[f]
+
 
     combined['tone'] = combined['Pro'] - combined['Anti']
     dates = [dt.datetime.strptime(str(d), '%m/%d/%Y') for d in polls['Date']]
     combined['date'] = dates
     combined['Value'] = polls['Index'] / 100.0
+    combined['normalized'] = polls['normalized']
     combined['N'] = polls['N']
     combined['Varname'] = polls['Varname']
     combined['running_average'] = polls['running_average'].values / 100.0
+    if use_frames:
+        combined['linear'] = polls['linear'].values
     #combined['predict'] = polls['predict']
     #combined['prev_value'] = polls['prev_value'] / 100.0
 
@@ -265,10 +284,9 @@ def combine_polls_with_preceeding_articles(polls, data, n_days=30, use_frames=Tr
     return combined
 
 
-
-
 def get_top_poll_questions(polls, n=10):
     varname_counts = Counter()
     varname_counts.update(polls['Varname'].ravel())
     top_varnames = [k for k, c in varname_counts.most_common(n=n)]
     return top_varnames
+
