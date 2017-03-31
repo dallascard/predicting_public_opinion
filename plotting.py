@@ -87,7 +87,7 @@ def plot_frames(grouped, ymax=0.6):
     f.subplots_adjust(wspace=0)  
 
 
-def plot_polling_data(polls, transform=False):
+def plot_polling_data(polls, transform=False, fig=None, ax=None):
 
   varname_vals = set(polls['Varname'].ravel())
   varname_counts = Counter()
@@ -98,7 +98,8 @@ def plot_polling_data(polls, transform=False):
   varname_index = dict(zip(top_varnames[:n_colours], range(n_colours)))  
 
   max_N = np.max(polls['N'])
-  fig, ax = plt.subplots(figsize=(8, 6))
+  if ax is None:
+    fig, ax = plt.subplots(figsize=(8, 6))
 
   print "Question\tResponses"
   for v_i, varname in enumerate(top_varnames):
