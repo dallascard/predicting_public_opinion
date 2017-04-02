@@ -68,10 +68,13 @@ def get_f_dates(data, first_year, group_by):
     # create a grouping of articles by year/quarter
     if group_by == 'month':
         data['f_date'] = data['year'] + (data['month'] - 1) / 12.0
+        data['period'] = data['p_month']
     elif group_by == 'quarter':
         data['f_date'] = data['year'] + (data['quarter'] - 1) / 4.0
+        data['period'] = data['p_quarter']
     elif group_by == 'year':
         data['f_date'] = data['year']
+        data['period'] = data['p_year']
     else:
         sys.exit('group_by not recognized')
     data['f_date_0'] = data['f_date'] - first_year
