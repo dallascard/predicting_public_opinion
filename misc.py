@@ -160,7 +160,7 @@ def load_polls(filename, first_year, last_date=None, subcode=None, n_folds=5):
     df['transformed'] = np.log(df.value / (1 - df.value))
 
     # only include polls with N > 0
-    df = df[df['N'] > 0]
+    df = df[df['N'] > 1]
 
     # filter by date
     df = df[df['date'] >= pd.datetime(first_year, 1, 1)]
