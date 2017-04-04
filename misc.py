@@ -81,7 +81,7 @@ def get_f_dates(data, first_year, group_by):
     return data
 
 
-def group_article_data(data, group_by, first_year, group_tone=False, group_frames=False):
+def group_article_data(data, group_by, first_year, group_tone=False, group_frames=False, group_directness=False):
     """
     Group the data in a DataFrame by either month or quarter
     :param data (DataFrame): the data frame to group
@@ -118,6 +118,10 @@ def group_article_data(data, group_by, first_year, group_tone=False, group_frame
         grouped['Neutral'] = groups.aggregate(np.mean)['Anti']
         grouped['Anti'] = groups.aggregate(np.mean)['Anti']
 
+    if group_directness:
+        grouped['Explicit'] = groups.aggregate(np.mean)['Explicit']
+        grouped['Implicit'] = groups.aggregate(np.mean)['Implicit']
+
     if group_frames:
         for c in FRAMES:
             grouped[c] = groups.aggregate(np.mean)[c]
@@ -134,6 +138,25 @@ def compute_entropy(df):
         frame_vals = np.array([row[f] for f in FRAMES])    
         df.loc[index, 'entropy'] = entropy(frame_vals)
     return df
+
+
+def compute_dominance(df):
+    df['d1'] = 0
+    df['d2'] = 0
+    df['d23'] = 0
+    df['top'] = 0
+    for i, index in enumerate(df.index):
+        row = df.loc[index]
+        frame_vals = list(np.array([row[f] for f in FRAMES]).tolist())
+        order = np.argsort(frame_vals)
+        df.loc[index, 'top'] = order[-1]
+        frame_vals.sort()
+        df.loc[index, 'd1'] = frame_vals[-1] - frame_vals[-2]
+        df.loc[index, 'd2'] = frame_vals[-1] - frame_vals[-3]
+        df.loc[index, 'd23'] = frame_vals[-2] - frame_vals[-3]
+    return df
+
+
 
 
 def load_polls(filename, first_year, last_date=None, subcode=None, n_folds=5):
