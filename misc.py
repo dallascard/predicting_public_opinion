@@ -25,6 +25,20 @@ FRAMES = ['Economic',
          'External_regulation',
          'Other']
 
+FRAMES_COMBO = ['Economic',
+         'Capacity_and_resources',
+         'Morality',
+         'Fairness_and_equality',
+         'Legality_jurisdiction',
+         'Policy_prescription',
+         'Crime_and_Security',
+         'Health_and_safety',
+         'Quality_of_life',
+         'Cultural_identity',
+         'Public_sentiment',
+         'Political',
+         'External_regulation',
+         'Other']
 
 def read_article_data(data_file, first_year, rename_frames=False):
     """
@@ -45,11 +59,11 @@ def read_article_data(data_file, first_year, rename_frames=False):
 
     if rename_frames:
         columns = list(data.columns)
-        for f_i, f in enumerate(FRAMES):
+        for f_i, f in enumerate(FRAMES_ALL):
             col_index = columns.index('p' + str(f_i))
             columns[col_index] = f
         data.columns = columns
-
+        data['Crime_and_Security'] = data['Crime_and_punishment'] + data['Security_and_defense']
     return data
 
 
@@ -90,9 +104,9 @@ def group_article_data(data, group_by, first_year, group_tone=False, group_frame
     """
 
     # create a dummy variable = 1 for all articles
-    data['stories'] = 1
+    data['stories'] = 1    
 
-    data = get_f_dates(data, first_year, group_by)
+    data = get_f_dates(data, first_year, group_by)        
 
     if group_tone and group_frames:
         for c in FRAMES:
