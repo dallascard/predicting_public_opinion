@@ -60,14 +60,20 @@ def plot_variables(grouped, tone_min=0, tone_max=1, plot_frames=True):
     ax4.legend(loc='lower left')
 
 
-def plot_frames(grouped, ymax=0.6):
+def plot_frames(grouped, ymax=0.6, group='all'):
     f, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8), (ax9, ax10, ax11, ax12), (ax13, ax14, ax15, ax16)) = plt.subplots(4, 4, sharex=True, sharey=True, figsize=(8,6))
     axes = (ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12, ax13, ax14, ax15)
 
-    for k, frame in enumerate(misc.FRAMES):
+    frames = misc.FRAMES
+    if group == 'pro':
+      frames = [c + '_pro' for c in frames]
+    elif group == 'anti':
+      frames = [c + '_anti' for c in frames]
+
+    for k, frame in enumerate(frames):
         x = grouped.f_date
         n = grouped['stories']
-        y = grouped[frame].as_matrix()
+        y = grouped[frame].values / grouped['stories']
         y_sd = np.sqrt(y * (1-y) / n)
         globalMean = np.mean(y)
         axes[k].fill_between(x,  y+y_sd*2, y-y_sd*2, facecolor='grey', edgecolor='white', alpha=0.6)

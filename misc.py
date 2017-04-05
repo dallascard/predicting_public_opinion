@@ -93,6 +93,11 @@ def group_article_data(data, group_by, first_year, group_tone=False, group_frame
     data['stories'] = 1
 
     data = get_f_dates(data, first_year, group_by)
+
+    if group_tone and group_frames:
+        for c in FRAMES:
+            data[c + '_pro'] = data[c] * data['Pro']
+            data[c + '_anti'] = data[c] * data['Anti']
       
     if group_by == 'quarter':
         groups = data.groupby('p_quarter')
@@ -102,7 +107,6 @@ def group_article_data(data, group_by, first_year, group_tone=False, group_frame
         groups = data.groupby('p_year')
     else:
         sys.exit('group_by not recognized')
-
       
     # create a new dataframe "grouped", which is what we will work with
     grouped = pd.DataFrame()
@@ -113,18 +117,23 @@ def group_article_data(data, group_by, first_year, group_tone=False, group_frame
     grouped['stories'] = groups.aggregate(np.sum)['stories']
 
     if group_tone:
-        grouped['tone'] = groups.aggregate(np.mean)['tone']
-        grouped['Pro'] = groups.aggregate(np.mean)['Pro']
-        grouped['Neutral'] = groups.aggregate(np.mean)['Anti']
-        grouped['Anti'] = groups.aggregate(np.mean)['Anti']
+        grouped['Pro'] = groups.aggregate(np.sum)['Pro']
+        grouped['Neutral'] = groups.aggregate(np.sum)['Neutral']
+        grouped['Anti'] = groups.aggregate(np.sum)['Anti']
+    grouped['tone'] = grouped['Pro'] - grouped['Anti']
 
     if group_directness:
-        grouped['Explicit'] = groups.aggregate(np.mean)['Explicit']
-        grouped['Implicit'] = groups.aggregate(np.mean)['Implicit']
+        grouped['Explicit'] = groups.aggregate(np.sum)['Explicit']
+        grouped['Implicit'] = groups.aggregate(np.sum)['Implicit']
 
     if group_frames:
         for c in FRAMES:
-            grouped[c] = groups.aggregate(np.mean)[c]
+            grouped[c] = groups.aggregate(np.sum)[c]
+
+    if group_frames and group_tone:
+        for c in FRAMES:
+            grouped[c + '_pro'] = groups.aggregate(np.sum)[c + '_pro']
+            grouped[c + '_anti'] = groups.aggregate(np.sum)[c + '_anti']
 
     log_stories = np.log(grouped['stories'].values)
     grouped['logStories'] = log_stories - float(np.mean(log_stories))
@@ -136,27 +145,78 @@ def compute_entropy(df):
     for i, index in enumerate(df.index):
         row = df.loc[index]
         frame_vals = np.array([row[f] for f in FRAMES])    
+        frame_vals = frame_vals / np.sum(frame_vals)
         df.loc[index, 'entropy'] = entropy(frame_vals)
     return df
 
 
-def compute_dominance(df):
-    df['d1'] = 0
-    df['d2'] = 0
-    df['d23'] = 0
-    df['top'] = 0
+def compute_truncated_entropy(df):
     for i, index in enumerate(df.index):
         row = df.loc[index]
         frame_vals = list(np.array([row[f] for f in FRAMES]).tolist())
-        order = np.argsort(frame_vals)
-        df.loc[index, 'top'] = order[-1]
         frame_vals.sort()
-        df.loc[index, 'd1'] = frame_vals[-1] - frame_vals[-2]
-        df.loc[index, 'd2'] = frame_vals[-1] - frame_vals[-3]
-        df.loc[index, 'd23'] = frame_vals[-2] - frame_vals[-3]
+        frame_vals.reverse()
+        frame_vals = np.array(frame_vals) / np.sum(frame_vals)
+        for j in range(2, 15):
+            df.loc[index, 'entropy_' + str(j)] = entropy(frame_vals[:j])
     return df
 
 
+def compute_signed_entropy(df):
+    for i, index in enumerate(df.index):
+        row = df.loc[index]
+        frame_vals = np.array([row[f + '_pro'] for f in FRAMES]) 
+        frame_vals = frame_vals / np.sum(frame_vals)
+        df.loc[index, 'entropy_pro'] = entropy(frame_vals)
+
+        frame_vals = np.array([row[f + '_anti'] for f in FRAMES]) 
+        frame_vals = frame_vals / np.sum(frame_vals)
+        df.loc[index, 'entropy_anti'] = entropy(frame_vals)
+    return df
+
+
+def compute_dominance(df):
+    df['dom'] = 0
+    df['d_pro'] = 0
+    df['d_anti'] = 0
+    for i, index in enumerate(df.index):
+        row = df.loc[index]
+        stories = row['stories']
+        frame_counts = list((np.array([row[f] for f in FRAMES])).tolist())
+        order = np.argsort(frame_counts)
+        frame_counts.sort()
+        df.loc[index, 'd1m2'] = frame_counts[-1] - frame_counts[-2]
+        df.loc[index, 'd1p2'] = frame_counts[-1] + frame_counts[-2]
+
+        frame_counts_pro = list((np.array([row[f + '_pro'] for f in FRAMES])).tolist())
+        order = np.argsort(frame_counts_pro)
+        frame_counts_pro.sort()
+        df.loc[index, 'd_pro'] = frame_counts_pro[-1] - frame_counts_pro[-2]
+        df.loc[index, 'd_pro2'] = frame_counts_pro[-2] - frame_counts_pro[-3]
+
+        frame_counts_anti = list((np.array([row[f + '_anti'] for f in FRAMES])).tolist())
+        order = np.argsort(frame_counts_anti)
+        frame_counts_anti.sort()
+        df.loc[index, 'd_anti'] = frame_counts_anti[-1] - frame_counts_anti[-2]
+        df.loc[index, 'd_anti2'] = frame_counts_anti[-2] - frame_counts_anti[-3]
+
+    return df
+
+
+def compute_js_divergence_over_time(df):
+    df['jsd_temporal'] = 0
+    prev_dist = None
+    for i, index in enumerate(df.index):
+        row = df.loc[index]
+        dist_i = np.array([row[f] for f in FRAMES])
+        dist_i = dist_i / np.sum(dist_i)
+        if i > 0:
+            M = (dist_i + prev_dist)/2.0
+            KLD_current = np.sum(dist_i * np.log(dist_i / M))
+            KLD_prev = np.sum(prev_dist * np.log(prev_dist / M))
+            df.loc[index, 'jsd_temporal'] = (KLD_current + KLD_prev)/2.0
+        prev_dist = dist_i
+    return df
 
 
 def load_polls(filename, first_year, last_date=None, subcode=None, n_folds=5):
