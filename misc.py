@@ -31,7 +31,8 @@ FRAMES_COMBO = ['Economic',
          'Fairness_and_equality',
          'Legality_jurisdiction',
          'Policy_prescription',
-         'Crime_and_Security',
+         'Crime_and_punishment',
+         'Security_and_defense',
          'Health_and_safety',
          'Quality_of_life',
          'Cultural_identity',
@@ -39,6 +40,18 @@ FRAMES_COMBO = ['Economic',
          'Political',
          'External_regulation',
          'Other']
+
+#FRAMES_COMBO = ['Economic_and_Capacity',
+#         'Morality_and_Fairness',
+#         'Legality_jurisdiction',
+#         'Crime_and_Security',
+#         'Health_and_safety',
+#         'Quality_of_life',
+#         'Cultural_identity',
+#         'Public_sentiment',
+#         'Political_and_Policy',
+#         'External_regulation',
+#         'Other']
 
 def read_article_data(data_file, first_year, rename_frames=False):
     """
@@ -59,11 +72,19 @@ def read_article_data(data_file, first_year, rename_frames=False):
 
     if rename_frames:
         columns = list(data.columns)
-        for f_i, f in enumerate(FRAMES_ALL):
+        for f_i, f in enumerate(FRAMES):
             col_index = columns.index('p' + str(f_i))
             columns[col_index] = f
         data.columns = columns
-        data['Crime_and_Security'] = data['Crime_and_punishment'] + data['Security_and_defense']
+        
+    return data
+
+
+def bundle_frames(data):
+    data['Crime_and_Security'] = data['Crime_and_punishment'] + data['Security_and_defense']
+    data['Morality_and_Fairness'] = data['Morality'] + data['Fairness_and_equality']
+    data['Economic_and_Capacity'] = data['Economic'] + data['Capacity_and_resources']
+    data['Political_and_Policy'] = data['Political'] + data['Policy_prescription']
     return data
 
 
@@ -109,7 +130,7 @@ def group_article_data(data, group_by, first_year, group_tone=False, group_frame
     data = get_f_dates(data, first_year, group_by)        
 
     if group_tone and group_frames:
-        for c in FRAMES:
+        for c in FRAMES_COMBO:
             data[c + '_pro'] = data[c] * data['Pro']
             data[c + '_anti'] = data[c] * data['Anti']
       
@@ -141,11 +162,11 @@ def group_article_data(data, group_by, first_year, group_tone=False, group_frame
         grouped['Implicit'] = groups.aggregate(np.sum)['Implicit']
 
     if group_frames:
-        for c in FRAMES:
+        for c in FRAMES_COMBO:
             grouped[c] = groups.aggregate(np.sum)[c]
 
     if group_frames and group_tone:
-        for c in FRAMES:
+        for c in FRAMES_COMBO:
             grouped[c + '_pro'] = groups.aggregate(np.sum)[c + '_pro']
             grouped[c + '_anti'] = groups.aggregate(np.sum)[c + '_anti']
 
@@ -158,7 +179,7 @@ def group_article_data(data, group_by, first_year, group_tone=False, group_frame
 def compute_entropy(df):
     for i, index in enumerate(df.index):
         row = df.loc[index]
-        frame_vals = np.array([row[f] for f in FRAMES])    
+        frame_vals = np.array([row[f] for f in FRAMES_COMBO])    
         frame_vals = frame_vals / np.sum(frame_vals)
         df.loc[index, 'entropy'] = entropy(frame_vals)
     return df
@@ -167,7 +188,7 @@ def compute_entropy(df):
 def compute_truncated_entropy(df):
     for i, index in enumerate(df.index):
         row = df.loc[index]
-        frame_vals = list(np.array([row[f] for f in FRAMES]).tolist())
+        frame_vals = list(np.array([row[f] for f in FRAMES_COMBO]).tolist())
         frame_vals.sort()
         frame_vals.reverse()
         frame_vals = np.array(frame_vals) / np.sum(frame_vals)
@@ -179,11 +200,11 @@ def compute_truncated_entropy(df):
 def compute_signed_entropy(df):
     for i, index in enumerate(df.index):
         row = df.loc[index]
-        frame_vals = np.array([row[f + '_pro'] for f in FRAMES]) 
+        frame_vals = np.array([row[f + '_pro'] for f in FRAMES_COMBO]) 
         frame_vals = frame_vals / np.sum(frame_vals)
         df.loc[index, 'entropy_pro'] = entropy(frame_vals)
 
-        frame_vals = np.array([row[f + '_anti'] for f in FRAMES]) 
+        frame_vals = np.array([row[f + '_anti'] for f in FRAMES_COMBO]) 
         frame_vals = frame_vals / np.sum(frame_vals)
         df.loc[index, 'entropy_anti'] = entropy(frame_vals)
     return df
@@ -193,26 +214,30 @@ def compute_dominance(df):
     df['dom'] = 0
     df['d_pro'] = 0
     df['d_anti'] = 0
+    df['top_pro'] = 0
+    df['top_anti'] = 0
     for i, index in enumerate(df.index):
         row = df.loc[index]
         stories = row['stories']
-        frame_counts = list((np.array([row[f] for f in FRAMES])).tolist())
+        frame_counts = list((np.array([row[f] for f in FRAMES_COMBO])).tolist())
         order = np.argsort(frame_counts)
         frame_counts.sort()
         df.loc[index, 'd1m2'] = frame_counts[-1] - frame_counts[-2]
         df.loc[index, 'd1p2'] = frame_counts[-1] + frame_counts[-2]
 
-        frame_counts_pro = list((np.array([row[f + '_pro'] for f in FRAMES])).tolist())
+        frame_counts_pro = list((np.array([row[f + '_pro'] for f in FRAMES_COMBO])).tolist())
         order = np.argsort(frame_counts_pro)
+        df.loc[index, 'top_pro'] = order[-1]
         frame_counts_pro.sort()
         df.loc[index, 'd_pro'] = frame_counts_pro[-1] - frame_counts_pro[-2]
-        df.loc[index, 'd_pro2'] = frame_counts_pro[-2] - frame_counts_pro[-3]
+        df.loc[index, 'd_pro2'] = frame_counts_pro[-1] - frame_counts_pro[-3]
 
-        frame_counts_anti = list((np.array([row[f + '_anti'] for f in FRAMES])).tolist())
+        frame_counts_anti = list((np.array([row[f + '_anti'] for f in FRAMES_COMBO])).tolist())        
         order = np.argsort(frame_counts_anti)
+        df.loc[index, 'top_anti'] = order[-1]
         frame_counts_anti.sort()
         df.loc[index, 'd_anti'] = frame_counts_anti[-1] - frame_counts_anti[-2]
-        df.loc[index, 'd_anti2'] = frame_counts_anti[-2] - frame_counts_anti[-3]
+        df.loc[index, 'd_anti2'] = frame_counts_anti[-1] - frame_counts_anti[-3]
 
     return df
 
@@ -222,7 +247,7 @@ def compute_js_divergence_over_time(df):
     prev_dist = None
     for i, index in enumerate(df.index):
         row = df.loc[index]
-        dist_i = np.array([row[f] for f in FRAMES])
+        dist_i = np.array([row[f] for f in FRAMES_COMBO])
         dist_i = dist_i / np.sum(dist_i)
         if i > 0:
             M = (dist_i + prev_dist)/2.0

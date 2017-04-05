@@ -64,7 +64,7 @@ def plot_frames(grouped, ymax=0.6, group='all'):
     f, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8), (ax9, ax10, ax11, ax12), (ax13, ax14, ax15, ax16)) = plt.subplots(4, 4, sharex=True, sharey=True, figsize=(8,6))
     axes = (ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12, ax13, ax14, ax15)
 
-    frames = misc.FRAMES
+    frames = misc.FRAMES_COMBO
     if group == 'pro':
       frames = [c + '_pro' for c in frames]
     elif group == 'anti':
