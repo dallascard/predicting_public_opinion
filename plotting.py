@@ -60,7 +60,7 @@ def plot_variables(grouped, tone_min=0, tone_max=1, plot_frames=True):
     ax4.legend(loc='lower left')
 
 
-def plot_frames(grouped, ymax=0.6, group='all'):
+def plot_frames(grouped, ymax=0.6, group='all', xmin=None, xmax=None):
     f, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8), (ax9, ax10, ax11, ax12), (ax13, ax14, ax15, ax16)) = plt.subplots(4, 4, sharex=True, sharey=True, figsize=(8,6))
     axes = (ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12, ax13, ax14, ax15)
 
@@ -84,13 +84,18 @@ def plot_frames(grouped, ymax=0.6, group='all'):
         #axes[k].set_xlim(1980, 2015)
         axes[k].set_ylim(0, ymax)
         axes[k].text(np.min(x)+1, ymax-0.1, frame)
-        if k > 12:
-            axes[k].set_xticks([1990, 2000, 2010])
+        if xmin is not None and xmax is not None:
+            axes[k].set_xlim(xmin, xmax)
+        else:
+            if k > 12:
+                axes[k].set_xticks([1990, 2000, 2010])
 
 
     ax16.axis('off')
     f.subplots_adjust(hspace=0)
     f.subplots_adjust(wspace=0)  
+
+
 
 
 def plot_polling_data(polls, transform=False, fig=None, ax=None):

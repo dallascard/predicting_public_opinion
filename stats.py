@@ -24,7 +24,7 @@ def ols(df, target, columns, add_intercept=True, weight_column=None):
     print "Rmse:", rmse
     print model.summary()
     
-    return fitted, rmse
+    return fitted, rmse, model
 
 
 def eval_loocv(df, target, columns, add_intercept=True, weight_column=None):

@@ -210,7 +210,7 @@ def compute_signed_entropy(df):
     return df
 
 
-def compute_dominance(df):
+def compute_dominance(df, threshold=0):
     df['dom'] = 0
     df['d_pro'] = 0
     df['d_anti'] = 0
@@ -227,17 +227,25 @@ def compute_dominance(df):
 
         frame_counts_pro = list((np.array([row[f + '_pro'] for f in FRAMES_COMBO])).tolist())
         order = np.argsort(frame_counts_pro)
-        df.loc[index, 'top_pro'] = order[-1]
         frame_counts_pro.sort()
         df.loc[index, 'd_pro'] = frame_counts_pro[-1] - frame_counts_pro[-2]
         df.loc[index, 'd_pro2'] = frame_counts_pro[-1] - frame_counts_pro[-3]
+        if frame_counts_pro[-1] - frame_counts_pro[-2] > threshold:
+            df.loc[index, 'top_pro'] = order[-1]
+        else:
+            df.loc[index, 'top_pro'] = -1
 
         frame_counts_anti = list((np.array([row[f + '_anti'] for f in FRAMES_COMBO])).tolist())        
         order = np.argsort(frame_counts_anti)
-        df.loc[index, 'top_anti'] = order[-1]
+
         frame_counts_anti.sort()
         df.loc[index, 'd_anti'] = frame_counts_anti[-1] - frame_counts_anti[-2]
         df.loc[index, 'd_anti2'] = frame_counts_anti[-1] - frame_counts_anti[-3]
+        if frame_counts_anti[-1] - frame_counts_anti[-2] > threshold:
+            df.loc[index, 'top_anti'] = order[-1]
+        else:
+            df.loc[index, 'top_anti'] = -1
+
 
     return df
 
