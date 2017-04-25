@@ -53,7 +53,7 @@ FRAMES_COMBO = ['Economic',
 #         'External_regulation',
 #         'Other']
 
-def read_article_data(data_file, first_year, rename_frames=False):
+def read_article_data(data_file, first_year, rename_frames=False, exclude_irrelevant=True):
     """
     Read in tone predictions for an issue and return a pandas DataFrame
     :param data_file (.csv file): file containing the predictions
@@ -65,7 +65,10 @@ def read_article_data(data_file, first_year, rename_frames=False):
     data = pd.read_csv(data_file, header=0, index_col=0)
 
     # exclude articles marked as "irrelevant" and those from before 1980
-    data = data.loc[(data['Irrelevant']==0) & (data['Year'] >= first_year)]
+    if exclude_irrelevant:
+        data = data.loc[(data['Irrelevant']==0) & (data['Year'] >= first_year)]
+    else:
+        data = data.loc[(data['Year'] >= first_year)]        
 
     # combine year, month, day into a single date variable
     data['date'] = data.apply(lambda row: pd.Timestamp(dt.date(row['Year'], row['Month'], row['Day'])), axis=1)
