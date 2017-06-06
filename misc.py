@@ -1,3 +1,6 @@
+import sys
+import calendar 
+
 import numpy as np
 import pandas as pd
 import datetime as dt
@@ -53,7 +56,7 @@ FRAMES_COMBO = ['Economic',
 #         'External_regulation',
 #         'Other']
 
-def read_article_data(data_file, first_year, rename_frames=False, exclude_irrelevant=True):
+def read_article_data(data_file, first_year, last_year, rename_frames=False, exclude_irrelevant=True, flip_tone=False, use_body=False):
     """
     Read in tone predictions for an issue and return a pandas DataFrame
     :param data_file (.csv file): file containing the predictions
@@ -66,9 +69,15 @@ def read_article_data(data_file, first_year, rename_frames=False, exclude_irrele
 
     # exclude articles marked as "irrelevant" and those from before 1980
     if exclude_irrelevant:
-        data = data.loc[(data['Irrelevant']==0) & (data['Year'] >= first_year)]
+        data = data.loc[(data['Irrelevant']==0) & (data['Year'] >= first_year) & (data['Year'] <= last_year)]
     else:
-        data = data.loc[(data['Year'] >= first_year)]        
+        data = data.loc[(data['Year'] >= first_year) & (data['Year'] <= last_year)]        
+
+    #if flip_tone:
+    #    pro = data['Pro'].values.copy()
+    #    anti = data['Anti'].values.copy()
+    #    data['Anti'] = pro
+    #    data['Pro'] = anti
 
     # combine year, month, day into a single date variable
     data['date'] = data.apply(lambda row: pd.Timestamp(dt.date(row['Year'], row['Month'], row['Day'])), axis=1)
@@ -76,7 +85,10 @@ def read_article_data(data_file, first_year, rename_frames=False, exclude_irrele
     if rename_frames:
         columns = list(data.columns)
         for f_i, f in enumerate(FRAMES):
-            col_index = columns.index('p' + str(f_i))
+            if use_body:
+                col_index = columns.index('b' + str(f_i))
+            else:
+                col_index = columns.index('p' + str(f_i))
             columns[col_index] = f
         data.columns = columns
         
@@ -99,12 +111,27 @@ def convert_dates(df, first_year):
     df['p_month'] = [(d.year - first_year)*12 + (d.month - 1) for d in df['date']]
     df['p_quarter'] = [(d.year - first_year)*4 + (d.quarter - 1) for d in df['date']]
     df['p_year'] = [(d.year - first_year) for d in df['date']]
+    df['p_day'] = dates_to_days(df['date'], first_year)
+    df['p_week'] = [(d.year - first_year) * 52 + (d.weekofyear - 1) for d in df['date']]
     return df
+
 
 
 def get_f_dates(data, first_year, group_by):
     # create a grouping of articles by year/quarter
-    if group_by == 'month':
+    if group_by == 'day':
+        data['f_date'] = 0.0
+        for i in data.index:
+            year = data.loc[i, 'year']
+            if calendar.isleap(year):
+                data.loc[i, 'f_date'] = data.loc[i, 'year'] + (data.loc[i, 'date'].dayofyear-1) / 366.0
+            else:
+                data.loc[i, 'f_date'] = data.loc[i, 'year'] + (data.loc[i, 'date'].dayofyear-1) / 365.0
+    elif group_by == 'week':
+        data['f_date'] = 0.0
+        for i in data.index:
+            data.loc[i, 'f_date'] = data.loc[i, 'year'] + (data.loc[i, 'date'].weekofyear-1) / 52.0
+    elif group_by == 'month':
         data['f_date'] = data['year'] + (data['month'] - 1) / 12.0
         data['period'] = data['p_month']
     elif group_by == 'quarter':
@@ -143,6 +170,8 @@ def group_article_data(data, group_by, first_year, group_tone=False, group_frame
         groups = data.groupby('p_month')
     elif group_by == 'year':
         groups = data.groupby('p_year')
+    elif group_by == 'week':
+        groups = data.groupby('p_week')
     else:
         sys.exit('group_by not recognized')
       
@@ -219,20 +248,29 @@ def compute_dominance(df, threshold=0):
     df['d_anti'] = 0
     df['top_pro'] = 0
     df['top_anti'] = 0
+    df['top_pro_counts'] = 0
+    df['top_anti_counts'] = 0
+    df['top_pro_percent'] = 0.0
+    df['top_anti_percent'] = 0.0
+    df['d_pro_percent'] = 0.0
+    df['d_anti_percent'] = 0.0
     for i, index in enumerate(df.index):
         row = df.loc[index]
         stories = row['stories']
         frame_counts = list((np.array([row[f] for f in FRAMES_COMBO])).tolist())
         order = np.argsort(frame_counts)
         frame_counts.sort()
-        df.loc[index, 'd1m2'] = frame_counts[-1] - frame_counts[-2]
-        df.loc[index, 'd1p2'] = frame_counts[-1] + frame_counts[-2]
+        #df.loc[index, 'd1m2'] = frame_counts[-1] - frame_counts[-2]
+        #df.loc[index, 'd1p2'] = frame_counts[-1] + frame_counts[-2]
 
         frame_counts_pro = list((np.array([row[f + '_pro'] for f in FRAMES_COMBO])).tolist())
+        
         order = np.argsort(frame_counts_pro)
         frame_counts_pro.sort()
         df.loc[index, 'd_pro'] = frame_counts_pro[-1] - frame_counts_pro[-2]
-        df.loc[index, 'd_pro2'] = frame_counts_pro[-1] - frame_counts_pro[-3]
+        df.loc[index, 'd_pro_percent'] = (frame_counts_pro[-1] - frame_counts_pro[-2]) / float(np.sum(frame_counts))
+        df.loc[index, 'top_pro_counts'] = frame_counts_pro[-1]
+        df.loc[index, 'top_pro_percent'] = frame_counts_pro[-1] / float(np.sum(frame_counts_pro))
         if frame_counts_pro[-1] - frame_counts_pro[-2] > threshold:
             df.loc[index, 'top_pro'] = order[-1]
         else:
@@ -243,12 +281,13 @@ def compute_dominance(df, threshold=0):
 
         frame_counts_anti.sort()
         df.loc[index, 'd_anti'] = frame_counts_anti[-1] - frame_counts_anti[-2]
-        df.loc[index, 'd_anti2'] = frame_counts_anti[-1] - frame_counts_anti[-3]
+        df.loc[index, 'd_anti_percent'] = (frame_counts_anti[-1] - frame_counts_anti[-2]) / float(np.sum(frame_counts))
+        df.loc[index, 'top_anti_counts'] = frame_counts_anti[-1]
+        df.loc[index, 'top_anti_percent'] = frame_counts_anti[-1] / float(np.sum(frame_counts_anti))
         if frame_counts_anti[-1] - frame_counts_anti[-2] > threshold:
             df.loc[index, 'top_anti'] = order[-1]
         else:
             df.loc[index, 'top_anti'] = -1
-
 
     return df
 
@@ -269,7 +308,7 @@ def compute_js_divergence_over_time(df):
     return df
 
 
-def load_polls(filename, first_year, last_date=None, subcode=None, n_folds=5):
+def load_polls(filename, first_year, last_date=None, subcode=None, n_folds=5, last_year=None):
     """
     Load the polling data from a .csv file
     :param filename (str): The file containing the polling data
@@ -282,8 +321,8 @@ def load_polls(filename, first_year, last_date=None, subcode=None, n_folds=5):
     df = pd.read_csv(filename)
     nRows, nCols = df.shape
 
-    #dates = [pd.Timestamp(dt.datetime.strptime(str(d), '%m/%d/%Y')) for d in df['Date']]
-    df['date'] = [pd.Timestamp(d) for d in df['Date']]
+    df['date'] = [pd.Timestamp(dt.datetime.strptime(str(d), '%m/%d/%Y')) for d in df['Date']]
+    #df['date'] = [pd.Timestamp(d) for d in df['Date']]
 
     df = convert_dates(df, first_year)
     
@@ -299,6 +338,8 @@ def load_polls(filename, first_year, last_date=None, subcode=None, n_folds=5):
     df = df[df['date'] >= pd.datetime(first_year, 1, 1)]
     if last_date is not None:
         df = df[df['date'] <= last_date]  
+    if last_year is not None:
+        df = df[df['date'] <= pd.datetime(last_year, 12, 31)]  
 
     # sort the polls by date
     df = df.sort_values(by='date')

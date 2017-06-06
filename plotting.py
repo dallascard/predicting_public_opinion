@@ -4,7 +4,25 @@ import datetime as dt
 import matplotlib.pyplot as plt
 
 from collections import Counter
-import misc
+
+import conversion
+import smoothing
+
+FRAMES = ['Economic',
+         'Capacity_and_resources',
+         'Morality',
+         'Fairness_and_equality',
+         'Legality_jurisdiction',
+         'Policy_prescription',
+         'Crime_and_punishment',
+         'Security_and_defense',
+         'Health_and_safety',
+         'Quality_of_life',
+         'Cultural_identity',
+         'Public_sentiment',
+         'Political',
+         'External_regulation',
+         'Other']
 
 tableau20 = [(31, 119, 180), (174, 199, 232), (255, 127, 14), (255, 187, 120),  
              (44, 160, 44), (152, 223, 138), (214, 39, 40), (255, 152, 150),  
@@ -60,28 +78,25 @@ def plot_variables(grouped, tone_min=0, tone_max=1, plot_frames=True):
     ax4.legend(loc='lower left')
 
 
-def plot_frames(grouped, ymax=0.6, group='all', xmin=None, xmax=None):
+def plot_frames(grouped, ymax=0.6, group='all', xmin=None, xmax=None, bw='cv_ls'):
     f, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8), (ax9, ax10, ax11, ax12), (ax13, ax14, ax15, ax16)) = plt.subplots(4, 4, sharex=True, sharey=True, figsize=(8,6))
     axes = (ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11, ax12, ax13, ax14, ax15)
 
-    frames = misc.FRAMES_COMBO
+    frames = FRAMES
     if group == 'pro':
-      frames = [c + '_pro' for c in frames]
+      frames = [c + '_Pro' for c in frames]
     elif group == 'anti':
-      frames = [c + '_anti' for c in frames]
+      frames = [c + '_Anti' for c in frames]
 
     for k, frame in enumerate(frames):
         x = grouped.f_date
         n = grouped['stories']
-        y = grouped[frame].values / grouped['stories']
-        y_sd = np.sqrt(y * (1-y) / n)
+        y = grouped[frame].values# / grouped['stories']
         globalMean = np.mean(y)
-        axes[k].fill_between(x,  y+y_sd*2, y-y_sd*2, facecolor='grey', edgecolor='white', alpha=0.6)
-        axes[k].plot(x, y, c='blue')
-        #axes[k].plot(x, np.zeros(len(y)), 'k--')
-        #axes[k].plot(x, np.ones(len(y))*globalMean, 'k--')
-        #axes[k].set_ylim(0, 0.6)
-        #axes[k].set_xlim(1980, 2015)
+        smoothed = smoothing.local_linear(x=x, y=y, pred_range=x, bw=bw)
+        axes[k].plot(x, y, c='blue', alpha=0.5)
+        axes[k].plot(x, smoothed, c='blue', alpha=0.8)
+        ax16.plot(x, smoothed, alpha=0.8)
         axes[k].set_ylim(0, ymax)
         axes[k].text(np.min(x)+1, ymax-0.1, frame)
         if xmin is not None and xmax is not None:
@@ -90,17 +105,16 @@ def plot_frames(grouped, ymax=0.6, group='all', xmin=None, xmax=None):
             if k > 12:
                 axes[k].set_xticks([1990, 2000, 2010])
 
-
-    ax16.axis('off')
+  
+    #ax16.axis('off')
     f.subplots_adjust(hspace=0)
     f.subplots_adjust(wspace=0)  
 
 
 
 
-def plot_polling_data(polls, transform=False, fig=None, ax=None):
+def plot_polling_data(polls, transform=False, fig=None, ax=None, legend=True, column='value'):
 
-  varname_vals = set(polls['Varname'].ravel())
   varname_counts = Counter()
   varname_counts.update(polls['Varname'].ravel())
   top_varnames = [k for k, c in varname_counts.most_common()]
@@ -112,15 +126,15 @@ def plot_polling_data(polls, transform=False, fig=None, ax=None):
   if ax is None:
     fig, ax = plt.subplots(figsize=(8, 6))
 
-  print "Question\tResponses"
+  #print "Question\tResponses"
   for v_i, varname in enumerate(top_varnames):
-      print "%8s\t%d" % (varname, varname_counts[varname])
+      #print "%8s\t%d" % (varname, varname_counts[varname])
       
       # extract the rows for this question
       polls_v = polls[polls['Varname'] == varname]
       
       # scale the size by the number of respondents
-      size = [max(1, 150*s/float(max_N)) for s in polls_v['N'].ravel()]
+      size = [max(1, 300.0*s/float(max_N)) for s in polls_v['N'].ravel()]
       
       # set the colours by poll question
       if varname in varname_index:
@@ -131,7 +145,7 @@ def plot_polling_data(polls, transform=False, fig=None, ax=None):
           edgecolor='black'
       
       # plot the poll results        
-      dates = polls_v['f_date'].ravel()
+      dates = conversion.dates_to_f_dates(polls_v['date'])
       # deal with an annoying bug in plt.scatter that will plot 3 points in different colours
       if len(dates) == 3 and len(facecolor) == 3: 
         facecolor = facecolor + [1]
@@ -139,14 +153,15 @@ def plot_polling_data(polls, transform=False, fig=None, ax=None):
       if transform:
         ax.scatter(dates, polls_v['transformed'].ravel(), s=size, facecolor=facecolor, edgecolor=edgecolor, label=varname, alpha=0.5)
       else:
-        ax.scatter(dates, polls_v['value'].ravel(), s=size, facecolor=facecolor, edgecolor=edgecolor, label=varname, alpha=0.5)
+        ax.scatter(dates, polls_v[column].ravel(), s=size, facecolor=facecolor, edgecolor=edgecolor, label=varname, alpha=0.5)
 
   first_year_x = polls['date'].min().year-2
   last_year = polls['date'].max().year+2
   #plt.xlim(dt.date(first_year_x, 1, 1), dt.date(last_year, 1, 1))
   if not transform:
     plt.ylim(0,1)
-  plt.legend(loc='upper right', scatterpoints=1, bbox_to_anchor=(1.3,1))
+  if legend:
+    plt.legend(loc='upper right', scatterpoints=1, bbox_to_anchor=(1.3,1))
 
   return fig, ax
 
